@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Anksunamoon</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.13.5/xlsx.full.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.13.5/jszip.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.11/lodash.js"></script>
+</head>
+<body>
+<div>
+
+    <label style="margin-left: 100px;" class="form-label" for="customFile">Upload Excel sheet here</label>
+
+    <input style="margin-left: 100px; width: 80%;" type="file" class="form-control" id="fileUpload">
+    <br/>
+    <input style="margin-left: 100px; width: 80%;" type="button" class="btn btn-primary active" id="upload" value="Upload" onclick="UploadProcess()" />
+<br/>
+     
+
+
+
+
+</div>
+<br/>
+
+<div style="margin-left:100px;" id="ExcelTable"></div>
+<input style="margin-left: 100px; width: 80%;" type="button" class="btn btn-primary active" id="downloadjson" value="download" onclick="jsontocsv()" />
+</body>
+ 
+<script type="text/javascript">
+    
+    var jsonData=[];
+    function UploadProcess() {
+        //Reference the FileUpload element.
+        var fileUpload = document.getElementById("fileUpload");
+ 
+        //Validate whether File is valid Excel file.
+        var regex = /^([a-zA-Z0-9\s_\\.\-:])+(.xls|.xlsx)$/;
+        if (regex.test(fileUpload.value.toLowerCase())) {
+            if (typeof (FileReader) != "undefined") {
+                var reader = new FileReader();
+ 
+                //For Browsers other than IE.
+                if (reader.readAsBinaryString) {
+                    reader.onload = function (e) {
+                        GetTableFromExcel(e.target.result);
+                    };
+                    reader.readAsBinaryString(fileUpload.files[0]);
+                } else {
+                    //For IE Browser.
+                    reader.onload = function (e) {
+                        var data = "";
+                        var bytes = new Uint8Array(e.target.result);
+                        for (var i = 0; i < bytes.byteLength; i++) {
+                            data += String.fromCharCode(bytes[i]);
+                        }
+                        GetTableFromExcel(data);
+                    };
+                    reader.readAsArrayBuffer(fileUpload.files[0]);
+                }
+            } else {
+                alert("This browser does not support HTML5.");
+            }
+        } else {
+            alert("Please upload a valid Excel file.");
+        }
+    };
+
+        function jsontocsv(){
+
+        
+        var jData = localStorage.getItem("lastname");
+
+        var jsonObject = JSON.stringify(JSON.parse(jData));
+
+     
+    
+
+        var downloadLink = document.createElement("a");
+var blob = new Blob(["\ufeff", ConvertToCSV(jsonObject)]);
+var url = URL.createObjectURL(blob);
+downloadLink.href = url;
+downloadLink.download = "data"+ new Date().getTime() +".csv";
+
+document.body.appendChild(downloadLink);
+downloadLink.click();
+document.body.removeChild(downloadLink);
+}
+         function ConvertToCSV(objArray) {
+            var array = typeof objArray != 'object' ? JSON.parse(objArray) : objArray;
+            var str = '';
+
+            for (var i = 0; i < array.length; i++) {
+                var line = '';
+            for (var index in array[i]) {
+                if (line != '') line += ','
+
+                line += array[i][index];
+            }
+
+            str += line + '\r\n';
+        }
+
+        return str;
+    }
+
+    function GetTableFromExcel(data) {
+         var row={};
+        row.rowNo="Row#";
+        row.Message="Message";
+        jsonData.push(row);
+        //Read the Excel File data in binary
+        var workbook = XLSX.read(data, {
+            type: 'binary'
+        });
+ 
+        //get the name of First Sheet.
+        var Sheets = workbook.SheetNames;
+       
+        var manFields=[];
+        Sheets.forEach((Sheet,i)=>{
+
+        //Read all rows from First Sheet into an JSON array.
+        var excelRows = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[Sheet]);
+
+        console.log(excelRows);
+        if(i==0){
+            var mandat=excelRows.filter(x=>x.Mandatory=="Mandatory");
+            manFields=mandat.map(x=>x['Field']);
+        } else {
+            excelRows.forEach((val,i)=>{
+                if((i+1)!=excelRows[i].__rowNum__){
+                    var para = document.createElement("P");
+                     var row={};
+                        row.rowNo=excelRows[i].__rowNum__;
+                        row.Message="All Fields is mising";
+                        jsonData.push(row);
+                        localStorage.setItem("lastname", JSON.stringify(jsonData));
+
+                        para.innerText = "All Fields is mising for In Row #"+(excelRows[i].__rowNum__);
+                        var ExcelTable = document.getElementById("ExcelTable");
+                        ExcelTable.appendChild(para);
+                        console.log("All Fields is mising for In Row #"+(excelRows[i].__rowNum__));
+                }
+                    manFields.forEach((m)=>{
+                        var renamed = _.mapKeys(val, function(value, key) {
+                            return key.replace(/[^\w\s]/gi, '').toLowerCase();
+                        });
+
+                    if (!renamed[m.replace(/[^\w\s]/gi, '').toLowerCase()]){
+                         var row={};
+                        row.rowNo=(excelRows[i].__rowNum__+1);
+                        row.Message="Missing field "+m;
+                        jsonData.push(row);
+                         localStorage.setItem("lastname", JSON.stringify(jsonData));
+                        var para = document.createElement("P");
+                        para.innerText = "Fields is mising for: "+m+" In Row #"+(excelRows[i].__rowNum__+1);
+                        var ExcelTable = document.getElementById("ExcelTable");
+                        ExcelTable.appendChild(para);
+                        console.log("Fields is mising for: "+m+" In Row #"+excelRows[i].__rowNum__);
+                    }
+                })
+            })
+        }
+       
+       });
+        
+    };
+</script>
+</html>
